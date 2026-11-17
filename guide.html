@@ -134,7 +134,7 @@ const styleTab=document.createElement('div');styleTab.id='styleTab';styleTab.cla
 const sections=[...sidebar.querySelectorAll(':scope > section')];
 if(sections[0])buildTab.append(sections[0]);if(sections[1])styleTab.append(sections[1]);if(sections[2])buildTab.append(sections[2]);if(sections[3])sections[3].remove();
 buildTab.prepend(guidePanel);if(sections[2])buildTab.insertBefore(sections[2],sections[0]);const advancedFooter=document.createElement('section');advancedFooter.className='advanced-footer pad';advancedFooter.append(guidePanel.querySelector('.compact-guide'),guidePanel.querySelector('.guide-controls'),guidePanel.querySelector('.notice'));buildTab.append(advancedFooter);
-sidebar.prepend(tabBar,buildTab,styleTab);const styleShortcut=document.createElement('button');styleShortcut.type='button';styleShortcut.className='btn style-shortcut';styleShortcut.textContent='☀ Lighting & scenery';styleShortcut.onclick=()=>selectSidebarTab('style');guidePanel.querySelector('.guide-head').append(styleShortcut);
+sidebar.prepend(tabBar,buildTab,styleTab);
 function selectSidebarTab(tab){const isBuild=tab==='build';buildTab.hidden=!isBuild;styleTab.hidden=isBuild;tabBar.querySelectorAll('button').forEach(t=>{const active=t.dataset.tab===tab;t.classList.toggle('active',active);t.setAttribute('aria-selected',String(active))});buildTab.scrollTop=0;styleTab.scrollTop=0}
 for(const b of tabBar.querySelectorAll('button'))b.onclick=()=>selectSidebarTab(b.dataset.tab);
 $('fsBack').onclick=()=>setGroup(activeGroup-1);$('fsNext').onclick=()=>setGroup(activeGroup+1);
@@ -143,7 +143,7 @@ let crossLayer=false,stepByBlock=new Map();
 let layer=0,mode='guided',ghost=false,selected=-1,threeReady=false,scene,camera,renderer,controls,meshes=[],raycaster,pointer,THREE;
 let footprintFill=null,footprintGrid=null,footprintOutline=null,selectionOutline=null,pickedPosition=null,textureMode=true,textureCache=new Map(),pastTextureCache=new Map();
 const visualKey='minecraft-builder-visual-'+buildId;
-let visual={dimEarlier:true,earlierSaturation:65,scenery:false,alwaysShowFloorPlan:false,animateSteps:true,sunDirection:55,sunHeight:48,sunIntensity:100};
+let visual={dimEarlier:true,earlierSaturation:65,scenery:false,alwaysShowFloorPlan:false,animateSteps:true,sunDirection:55,sunHeight:48,sunIntensity:100,sunFollowCamera:false,sunFollowHeight:40,placeVolume:35};
 try{const saved=JSON.parse(localStorage.getItem(visualKey)||'{}');visual={...visual,...saved};if(typeof saved.dimEarlier!=='boolean')visual.dimEarlier=true;visual.earlierSaturation=Number.isFinite(Number(saved.earlierSaturation))?Math.max(0,Math.min(100,Number(saved.earlierSaturation))):65}catch(e){}
 let sunLight=null,sceneryObjects=[],sceneryRoot=null,sceneryGround=null;let groupLimit=Number(localStorage.getItem("minecraft-builder-step-size")||36),groupsByLayer=[],activeGroup=0,highlight=true,showCompleted=true,done=new Set();const storageKey='minecraft-builder-'+buildId+'-v05-progress';
 const guideModeKey='minecraft-builder-guide-mode-'+buildId;
@@ -347,7 +347,7 @@ function showMaterial(id,x,z,y=layer-1){selected=id;const p=palette[id];const na
 function updateUI(){ $('focusStep').disabled=!threeReady||!getGroup()?.blocks.length;updateFloorPlan();updateGroupUI();saveCurrentPosition();$('slider').value=layer;$('step').textContent=`${layer} / ${H}`;$('materialsTitle').textContent=$('scope').value==='all'?'Entire tower':`Layer ${layer}`;$('mapTitle').textContent=`Layer ${layer} · ${W} × ${L}`;$('gridmap').style.aspectRatio=W+' / '+L;$('gridmap').style.gridTemplateColumns='repeat('+W+',minmax(0,1fr))';let c=currentCounts();$('materials').innerHTML=Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([id,n])=>`<div class="material" data-id="${id}"><span class="swatch" style="background:${styledColor(+id)}"></span><span class="name">${pretty(styledName(id))}</span><span class="count">${Number(n).toLocaleString()} ×</span></div>`).join('');document.querySelectorAll('.material').forEach(el=>el.onclick=()=>{showMaterial(+el.dataset.id);});const cells=new Array(W*L).fill(-1);const a=data.layers[layer-1]||[];for(let i=0;i<a.length;i+=3)cells[a[i+1]*W+a[i]]=a[i+2];const activeCells=new Set((getGroup()?.blocks||[]).filter(b=>b.y===layer-1).map(b=>b.z*W+b.x));const currentStep=getGroup()?.step;$('gridmap').innerHTML=cells.map((id,i)=>{const active=highlight&&activeCells.has(i),earlier=stepByBlock.get(blockKey(i%W,layer-1,Math.floor(i/W)))?.step<currentStep,future=id>=0&&!active&&!earlier;let bg=id<0?'#15171a':styledColor(id);if(id>=0&&earlier&&visual.dimEarlier){const value=bg.replace('#','');if(/^[0-9a-f]{6}$/i.test(value)){const rgb=[0,2,4].map(j=>parseInt(value.slice(j,j+2),16)),lum=Math.round(.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2]),ratio=visual.earlierSaturation/100;bg='#'+rgb.map(v=>Math.round((lum+(v-lum)*ratio)*.6).toString(16).padStart(2,'0')).join('')}}return '<div class="cell '+(active?'highlight-cell':earlier?'done-cell':future?'future-cell':'')+'" data-id="'+id+'" data-x="'+(i%W)+'" data-z="'+Math.floor(i/W)+'" style="background:'+bg+'" title="'+(id<0?'Empty':pretty(styledName(id)))+'"></div>'}).join('');$('gridmap').querySelectorAll('.cell').forEach(el=>el.onclick=()=>(showMaterial(+el.dataset.id,+el.dataset.x,+el.dataset.z),highlight?selectBlockStep(+el.dataset.x,+el.dataset.z):null));if(threeReady)rebuild();}
 function setLayer(n){mode='guided';layer=Math.max(0,Math.min(H,n));activeGroup=0;updateUI()};$('prev').onclick=()=>setLayer(layer-1);$('next').onclick=()=>setLayer(layer+1);$('slider').oninput=e=>setLayer(+e.target.value);$('scope').onchange=updateUI;document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{if(layer===0&&b.dataset.mode!=='guided')layer=1;mode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x===b));updateUI()});$('ghost').onclick=()=>{ghost=!ghost;$('ghost').classList.toggle('active',ghost);updateUI()};$('total').textContent=Object.values(data.counts).reduce((a,b)=>a+b,0).toLocaleString();$('types').textContent=new Set(Object.keys(data.counts).map(i=>palette[i].name)).size;
 $('download').onclick=()=>{let lines=['x,y,z,block,states'];const a=data.layers[layer-1]||[];for(let i=0;i<a.length;i+=3){let p=palette[a[i+2]];lines.push([a[i]+1,layer,a[i+1]+1,p.name,JSON.stringify(p.states).replaceAll(',',';')].join(','))}let url=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));let link=document.createElement('a');link.href=url;link.download=`willis-tower-layer-${layer}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
-async function init3D(){try{THREE=await import('https://esm.sh/three@0.170.0');const {OrbitControls}=await import('https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js');const canvas=$('scene');renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(45,1,.1,1000);camera.position.set(52,45,65);controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.addEventListener('change',()=>{measurementsDirty=true});controls.target.set(0,24,0);controls.update();scene.add(new THREE.HemisphereLight(0xffffff,0x434653,1.55));sunLight=new THREE.DirectionalLight(0xffffff,2.1);scene.add(sunLight);sunLight.castShadow=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;sunLight.shadow.mapSize.set(1024,1024);sunLight.shadow.bias=-.0005;const shadowRadius=Math.max(W,L)*1.7+24;sunLight.shadow.camera.left=-shadowRadius;sunLight.shadow.camera.right=shadowRadius;sunLight.shadow.camera.top=shadowRadius;sunLight.shadow.camera.bottom=-shadowRadius;sunLight.shadow.camera.near=.5;sunLight.shadow.camera.far=Math.max(300,H+180);sunLight.target.position.set(0,Math.min(H/2,30),0);scene.add(sunLight.target);setSunPosition();makeFloorPlan();makeScenery();selectionOutline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.06,1.06,1.06)),new THREE.LineBasicMaterial({color:0xffed85,depthTest:false}));selectionOutline.visible=false;selectionOutline.renderOrder=20;scene.add(selectionOutline);raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(meshes.filter(m=>m.userData.ids),false).find(h=>h.instanceId!==undefined);if(!hit)return;const p=hit.object.userData.ids[hit.instanceId];if(!p)return;pickedPosition=p;showMaterial(p[3],p[0],p[2],p[1]);const block=palette[p[3]]||{name:'unknown',states:{}};$('pickedName').textContent=pretty(block.name);const absoluteIndex=stepByBlock.get(blockKey(p[0],p[1],p[2]))?.step;$('pickedStep').disabled=!absoluteIndex;$('pickedStep').onclick=()=>{if(absoluteIndex){$('pickedClose').click();jumpToStep(absoluteIndex);focusCurrentStep()}};$('pickedStep').textContent=absoluteIndex?'Placed in step '+absoluteIndex:'Construction step unavailable';$('pickedIcon').src=getTexture(p[3]).image.toDataURL('image/png');$('pickedBlock').hidden=false;selectionOutline.position.set(p[0]-(W-1)/2,p[1],p[2]-(L-1)/2);selectionOutline.visible=true});$('pickedClose').onclick=()=>{$('pickedBlock').hidden=true;selectionOutline.visible=false;pickedPosition=null};$('reset').onclick=resetCamera;threeReady=true;$('focusStep').disabled=!getGroup()?.blocks.length;if(layer===0)resetCamera();rebuild();function frame(){requestAnimationFrame(frame);let r=canvas.getBoundingClientRect();if(canvas.width!==Math.round(r.width*Math.min(devicePixelRatio,2))||canvas.height!==Math.round(r.height*Math.min(devicePixelRatio,2))){renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix()}const moved=controls.update();animateActiveStep();renderer.render(scene,camera);positionMeasurements(r.width,r.height,moved)}frame()}catch(e){console.error(e);$('fallback').style.display='flex';$('fallback').innerHTML='3D requires an internet connection to load the viewer.<br>Layer maps and material lists still work.'}}
+async function init3D(){try{THREE=await import('https://esm.sh/three@0.170.0');const {OrbitControls}=await import('https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js');const canvas=$('scene');renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(45,1,.1,1000);camera.position.set(52,45,65);controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.addEventListener('change',()=>{measurementsDirty=true;if(visual.sunFollowCamera)updateFollowingSun()});controls.target.set(0,24,0);controls.update();scene.add(new THREE.HemisphereLight(0xffffff,0x434653,1.55));sunLight=new THREE.DirectionalLight(0xffffff,2.1);scene.add(sunLight);sunLight.castShadow=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;sunLight.shadow.mapSize.set(1024,1024);sunLight.shadow.bias=-.0005;const shadowRadius=Math.max(W,L)*1.7+24;sunLight.shadow.camera.left=-shadowRadius;sunLight.shadow.camera.right=shadowRadius;sunLight.shadow.camera.top=shadowRadius;sunLight.shadow.camera.bottom=-shadowRadius;sunLight.shadow.camera.near=.5;sunLight.shadow.camera.far=Math.max(300,H+180);sunLight.target.position.set(0,Math.min(H/2,30),0);scene.add(sunLight.target);setSunPosition();makeFloorPlan();makeScenery();selectionOutline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.06,1.06,1.06)),new THREE.LineBasicMaterial({color:0xffed85,depthTest:false}));selectionOutline.visible=false;selectionOutline.renderOrder=20;scene.add(selectionOutline);raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(meshes.filter(m=>m.userData.ids),false).find(h=>h.instanceId!==undefined);if(!hit)return;const p=hit.object.userData.ids[hit.instanceId];if(!p)return;pickedPosition=p;showMaterial(p[3],p[0],p[2],p[1]);const block=palette[p[3]]||{name:'unknown',states:{}};$('pickedName').textContent=pretty(block.name);const absoluteIndex=stepByBlock.get(blockKey(p[0],p[1],p[2]))?.step;$('pickedStep').disabled=!absoluteIndex;$('pickedStep').onclick=()=>{if(absoluteIndex){$('pickedClose').click();jumpToStep(absoluteIndex);focusCurrentStep()}};$('pickedStep').textContent=absoluteIndex?'Placed in step '+absoluteIndex:'Construction step unavailable';$('pickedIcon').src=getTexture(p[3]).image.toDataURL('image/png');$('pickedBlock').hidden=false;selectionOutline.position.set(p[0]-(W-1)/2,p[1],p[2]-(L-1)/2);selectionOutline.visible=true});$('pickedClose').onclick=()=>{$('pickedBlock').hidden=true;selectionOutline.visible=false;pickedPosition=null};$('reset').onclick=resetCamera;threeReady=true;$('focusStep').disabled=!getGroup()?.blocks.length;if(layer===0)resetCamera();rebuild();function frame(){requestAnimationFrame(frame);let r=canvas.getBoundingClientRect();if(canvas.width!==Math.round(r.width*Math.min(devicePixelRatio,2))||canvas.height!==Math.round(r.height*Math.min(devicePixelRatio,2))){renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix()}const moved=controls.update();animateActiveStep();renderer.render(scene,camera);positionMeasurements(r.width,r.height,moved)}frame()}catch(e){console.error(e);$('fallback').style.display='flex';$('fallback').innerHTML='3D requires an internet connection to load the viewer.<br>Layer maps and material lists still work.'}}
 $('focusStep').onclick=focusCurrentStep;
 function focusCurrentStep(){
  const group=getGroup();
@@ -586,7 +586,27 @@ if(!asset&&n==='beacon'){
 }
 const glass=n.includes('glass'),brick=/brick|tile|quartz_bricks/.test(n),wood=/log|plank|wood/.test(n),stone=/stone|diorite|granite|andesite|quartz/.test(n);if(!asset&&brick){for(let y=0;y<32;y+=8){ctx.fillStyle='#00000025';ctx.fillRect(0,y,32,1);for(let x=(y/8%2)*8;x<32;x+=16)ctx.fillRect(x,y,1,8)}}else if(!asset&&wood){for(let x=0;x<32;x+=3){ctx.fillStyle=rand()>.5?'#ffffff18':'#00000020';ctx.fillRect(x,0,1,32)}}else if(!asset&&glass){ctx.strokeStyle='#ffffff80';ctx.lineWidth=2;ctx.strokeRect(1,1,30,30);ctx.fillStyle='#ffffff25';ctx.fillRect(4,4,4,19)}if(!asset&&(stone||wood||brick)){for(let i=0;i<150;i++){ctx.fillStyle=rand()>.5?'#ffffff12':'#00000016';ctx.fillRect(Math.floor(rand()*32),Math.floor(rand()*32),1+Math.floor(rand()*3),1+Math.floor(rand()*2))}}const t=new THREE.CanvasTexture(c);t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;t.colorSpace=THREE.SRGBColorSpace;textureCache.set(key,t);return t}
 function persistVisual(){try{localStorage.setItem(visualKey,JSON.stringify(visual))}catch(e){}}
-function setSunPosition(){if(!sunLight)return;sunLight.intensity=2.1*visual.sunIntensity/100;const a=Number(visual.sunDirection)*Math.PI/180;const h=Number(visual.sunHeight)*Math.PI/180;const r=Math.max(W,L)*2+60;const horizontal=r*Math.cos(h);sunLight.position.set(Math.cos(a)*horizontal,Math.max(15,r*Math.sin(h)),Math.sin(a)*horizontal);sunLight.target.position.set(0,Math.min(H*.5,35),0);sunLight.target.updateMatrixWorld();sunLight.shadow.camera.updateProjectionMatrix()}
+let lastSunAngle=null;
+function updateFollowingSun(){
+ const angle=controls.getAzimuthalAngle();
+ if(lastSunAngle!==null&&Math.abs(angle-lastSunAngle)<.005)return;
+ setSunPosition();
+}
+function setSunPosition(){
+ if(!sunLight)return;
+ sunLight.intensity=2.1*visual.sunIntensity/100;
+ const following=visual.sunFollowCamera;
+ const angle=following?controls.getAzimuthalAngle():visual.sunDirection*Math.PI/180;
+ lastSunAngle=following?angle:null;
+ const height=(following?visual.sunFollowHeight:visual.sunHeight)*Math.PI/180;
+ const radius=Math.max(W,L)*2+60,horizontal=radius*Math.cos(height);
+ const targetY=Math.min(H*.5,35);
+ sunLight.position.set((following?Math.sin(angle):Math.cos(angle))*horizontal,
+  (following?targetY+radius*Math.sin(height):Math.max(15,radius*Math.sin(height))),(following?Math.cos(angle):Math.sin(angle))*horizontal);
+ sunLight.target.position.set(0,targetY,0);
+ sunLight.target.updateMatrixWorld();
+}
+
 function clearScenery(){if(!sceneryRoot)return;scene.remove(sceneryRoot);sceneryRoot.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>m.dispose())}});sceneryRoot=null}
 function makeScenery(){
  clearScenery();if(!scene||!visual.scenery)return;
@@ -739,12 +759,17 @@ const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const measurements=document.createElement('div');
 measurements.className='step-measurements';
 $('scene').parentElement.append(measurements);
-let animatedMeshes=[],measurementLines=[],animationStart=0,lastAnimatedStep=null;
+let animatedMeshes=[],placementOrder=new Map(),placementDelays=[],nextLanding=0,measurementLines=[],animationStart=0,lastAnimatedStep=null;
 let measurementsDirty=false,lastMeasureWidth=0,lastMeasureHeight=0;
 function prepareStepOverlay(group){
  animatedMeshes=[];
  if((layer===0?'floor-plan':group?.key)===lastAnimatedStep)return;
  animationStart=performance.now();
+ const blocks=[...(group?.blocks||[])].sort((a,b)=>a.y-b.y||a.z-b.z||a.x-b.x);
+ const interval=Math.min(42,650/Math.max(1,blocks.length-1));
+ placementOrder=new Map(blocks.map((b,i)=>[blockKey(b.x,b.y,b.z),i*interval]));
+ placementDelays=blocks.map((_,i)=>i*interval);
+ nextLanding=0;
  lastAnimatedStep=layer===0?'floor-plan':group?.key;
  measurements.replaceChildren();
  measurementLines=[];
@@ -820,13 +845,56 @@ function positionMeasurements(width,height,moved){
   label.style.top=bottom+'px';
  }
 }
+let placementAudio,lastPopTime=-Infinity;
+function enablePlacementAudio(){
+ if(!visual.placeVolume)return;
+ const Audio=window.AudioContext||window.webkitAudioContext;
+ if(!Audio)return;
+ try{
+  placementAudio??=new Audio();
+  if(placementAudio.state==='suspended')placementAudio.resume().catch(()=>{});
+ }catch{}
+}
+document.addEventListener('click',enablePlacementAudio,{capture:true,passive:true});
+document.addEventListener('keydown',enablePlacementAudio);
+function playPlacementPop(){
+ if(!placementAudio||placementAudio.state!=='running'||!visual.placeVolume)return;
+ const time=placementAudio.currentTime;
+ if(time-lastPopTime<.045)return;
+ lastPopTime=time;
+ const tone=placementAudio.createOscillator(),gain=placementAudio.createGain();
+ tone.type='sine';
+ tone.frequency.setValueAtTime(460,time);
+ tone.frequency.exponentialRampToValueAtTime(105,time+.055);
+ gain.gain.setValueAtTime(.12*visual.placeVolume/100,time);
+ gain.gain.exponentialRampToValueAtTime(.001,time+.065);
+ tone.connect(gain);gain.connect(placementAudio.destination);
+ tone.start(time);tone.stop(time+.067);
+}
+const dropDuration=270;
 function animateActiveStep(){
  const enabled=visual.animateSteps!==false&&!reducedMotion.matches;
  const elapsed=performance.now()-animationStart;
- const fall=enabled?1.7*Math.pow(Math.max(0,1-elapsed/330),2):0;
- const pulse=enabled?.5+.5*Math.sin(elapsed*Math.PI/800):.5;
+ const lastDelay=placementDelays.at(-1)??0;
+ const settled=!enabled||elapsed>=lastDelay+dropDuration;
+ const pulse=enabled&&settled?.5+.5*Math.sin((elapsed-lastDelay-dropDuration)*Math.PI/800):.5;
+ let landed=false;
+ while(nextLanding<placementDelays.length&&(!enabled||elapsed>=placementDelays[nextLanding]+dropDuration)){
+  landed=true;nextLanding++;
+ }
+ if(enabled&&landed&&elapsed<lastDelay+dropDuration+100)playPlacementPop();
  for(const mesh of animatedMeshes){
-  mesh.position.y=fall;
+  const drop=mesh.userData.drop;
+  if(drop&&(!settled||!drop.settled)){
+   const matrices=mesh.instanceMatrix.array;
+   for(let i=0;i<drop.delays.length;i++){
+    const progress=enabled?Math.min(1,Math.max(0,(elapsed-drop.delays[i])/dropDuration)):1;
+    matrices[i*16+13]=drop.heights[i]+1.7*(1-progress)**2;
+   }
+   mesh.instanceMatrix.needsUpdate=true;
+   drop.settled=settled;
+  }
+  if(!drop)mesh.visible=settled;
   for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
    if(material.emissive)material.emissiveIntensity=.12+.25*pulse;
    else material.opacity=mesh.userData.baseOpacity*(.7+.3*pulse);
@@ -902,7 +970,16 @@ for(const part of parts){
  mesh.userData.ids=futureBlock?null:items;
  mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=part.surface!=='shell';mesh.receiveShadow=true;
  scene.add(mesh);meshes.push(mesh);
- if(active&&guided)animatedMeshes.push(mesh);
+ if(active&&guided){
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.userData.drop={
+   delays:items.map(([x,y,z])=>placementOrder.get(blockKey(x,y,z))??0),
+   heights:items.map(item=>item[1]+part.y),settled:false
+  };
+  // Keep elevated blocks visible before they settle into their final positions.
+  mesh.frustumCulled=false;
+  animatedMeshes.push(mesh);
+ }
  if(active&&highlight&&!part.plant&&!part.vine&&(!part.surface||part.surface==='shell')){
   // Only 12 actual rectangular edges for each piece, no face triangulation.
   const edges=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
@@ -938,6 +1015,9 @@ const styleControls=document.createElement('section');styleControls.className='s
 '<div class="style-slider-label"><span>Earlier block saturation</span><b id="earlierSatValue">65%</b></div><input id="earlierSaturation" type="range" min="0" max="100" step="5" aria-label="Saturation of earlier construction blocks"><div class="style-slider-ends"><span>0% · Grayscale</span><span>100% · Full colour</span></div>'+
 '<label class="style-switch"><span><b>Scenery</b><small>Optional grass, trees and flowers outside the build</small></span><input id="sceneryToggle" type="checkbox"></label>'+
 '<div class="style-slider-label"><span>Sun direction</span><b id="sunDirValue"></b></div><input id="sunDirection" type="range" min="0" max="359" step="1">'+
+'<label class="style-switch"><span><b>Sun follow camera</b><small>Light the side you’re looking at</small></span><input id="sunFollowCamera" type="checkbox"></label>'+
+'<div class="style-slider-label"><label for="sunFollowHeight">Follow height</label><b id="sunFollowHeightValue"></b></div><input id="sunFollowHeight" type="range" min="10" max="85" step="1">'+
+'<div class="style-slider-label"><label for="placeVolume">Placement pop volume</label><b id="placeVolumeValue"></b></div><input id="placeVolume" type="range" min="0" max="100" step="5">'+
 '<div class="style-slider-label"><label for="sunIntensity">Sun intensity</label><b id="sunIntensityValue"></b></div><input id="sunIntensity" type="range" min="0" max="200" step="5">'+
 '<div class="style-slider-label"><span>Sun height</span><b id="sunHeightValue"></b></div><input id="sunHeight" type="range" min="10" max="85" step="1">'+
 '<label class="style-switch"><span><b>Textured blocks</b><small>Approximate Minecraft-inspired textures</small></span><input id="texturesToggle" type="checkbox" checked></label>';
@@ -959,11 +1039,27 @@ $('sceneryToggle').checked=Boolean(visual.scenery);
 $('sunDirection').value=visual.sunDirection;
 $('sunHeight').value=visual.sunHeight;
 $('sunIntensity').value=visual.sunIntensity;
+$('sunFollowCamera').checked=visual.sunFollowCamera;
+$('sunFollowHeight').value=visual.sunFollowHeight;
+$('placeVolume').value=visual.placeVolume;
+function refreshFollowControls(){
+ $('sunFollowHeight').disabled=!visual.sunFollowCamera;
+ $('sunDirection').disabled=$('sunHeight').disabled=visual.sunFollowCamera;
+ $('sunFollowHeightValue').textContent=visual.sunFollowHeight+'°';
+ $('placeVolumeValue').textContent=visual.placeVolume+'%';
+}
+refreshFollowControls();
+$('sunFollowCamera').onchange=e=>{
+ visual.sunFollowCamera=e.target.checked;refreshFollowControls();persistVisual();setSunPosition();
+};
+$('placeVolume').oninput=e=>{
+ visual.placeVolume=Number(e.target.value);enablePlacementAudio();refreshFollowControls();persistVisual();
+};
 function refreshSunLabels(){$('sunDirValue').textContent=visual.sunDirection+'°';$('sunHeightValue').textContent=visual.sunHeight+'°';$('sunIntensityValue').textContent=visual.sunIntensity+'%'}refreshSunLabels();
 $('dimEarlier').onchange=e=>{visual.dimEarlier=e.target.checked;$('earlierSaturation').disabled=!visual.dimEarlier;persistVisual();if(threeReady)rebuild()};
 $('earlierSaturation').oninput=e=>{visual.earlierSaturation=Number(e.target.value);$('earlierSatValue').textContent=visual.earlierSaturation+'%';persistVisual();if(threeReady){clearEarlierTextureCache();rebuild()}};
 $('sceneryToggle').onchange=e=>{visual.scenery=e.target.checked;persistVisual();if(threeReady)makeScenery()};
-for(const name of ['sunDirection','sunHeight','sunIntensity'])$(name).oninput=e=>{visual[name]=Number(e.target.value);persistVisual();refreshSunLabels();setSunPosition()};
+for(const name of ['sunDirection','sunHeight','sunIntensity','sunFollowHeight'])$(name).oninput=e=>{visual[name]=Number(e.target.value);persistVisual();refreshSunLabels();refreshFollowControls();setSunPosition()};
 $('texturesToggle').onchange=e=>{textureMode=e.target.checked;textureCache.forEach(t=>t.dispose());textureCache.clear();clearEarlierTextureCache();if(threeReady)rebuild()};
 async function useDefaultMaterials(){
  const status=$('materialPackStatus'),input=$('materialPack');
