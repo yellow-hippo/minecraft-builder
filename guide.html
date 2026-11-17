@@ -328,7 +328,7 @@ for(const part of parts){
   }
  }
 }
-}}if(mode==='full'&&camera.position.y<H*.55)resetCamera();if(mode==='layer'||mode==='guided'){controls.target.y=layer-1;if(Math.abs(camera.position.y-controls.target.y)>90)camera.position.y=layer+35}geometry.dispose()}
+}if(mode==='full'&&camera.position.y<H*.55)resetCamera();if(mode==='layer'||mode==='guided'){controls.target.y=layer-1;if(Math.abs(camera.position.y-controls.target.y)>90)camera.position.y=layer+35}geometry.dispose()}
 const styleControls=document.createElement('section');styleControls.className='style-view-settings';styleControls.innerHTML=
 '<h2>Visual settings</h2>'+
 '<label class="style-switch"><span><b>Dim earlier blocks</b><small>Darken previously placed blocks without transparency</small></span><input id="dimEarlier" type="checkbox"></label>'+ 
