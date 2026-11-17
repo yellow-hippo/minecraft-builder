@@ -270,7 +270,8 @@ function selectBlockStep(x,z){
  const group=stepByBlock.get(blockKey(x,layer-1,z));
  if(group)jumpToStep(group.step);
 }
-const styleKey='minecraft-builder-style-'+buildId;let swaps={};try{swaps=JSON.parse(localStorage.getItem(styleKey)||'{}')}catch(e){};function styledName(id){return swaps[palette[id]?.name]||palette[id]?.name||'air'}function styledColor(id){const replacement=palette.findIndex(p=>p.name===styledName(id));return color(replacement<0?id:replacement)}function saveStyle(){localStorage.setItem(styleKey,JSON.stringify(swaps));updateUI()}const names=[...new Set(palette.filter(p=>p.name!=='air').map(p=>p.name))].sort();for(const el of [$('swapFrom'),$('swapTo')])el.innerHTML=names.map(n=>'<option value="'+n+'">'+pretty(n)+'</option>').join('');$('swapTo').value='white_concrete';$('swapApply').onclick=()=>{const a=$('swapFrom').value,b=$('swapTo').value;if(a===b)delete swaps[a];else swaps[a]=b;saveStyle()};$('swapReset').onclick=()=>{swaps={};saveStyle()};$('stepSize').value=String(groupLimit);$('stepSize').onchange=e=>{groupLimit=+e.target.value;localStorage.setItem('minecraft-builder-step-size',groupLimit);activeGroup=0;makeGroups();done.clear();saveProgress();updateUI()};$('fullScreen').onclick=()=>{const el=document.querySelector('.viewport');if(document.fullscreenElement)document.exitFullscreen();else if(el.requestFullscreen)el.requestFullscreen();else alert('For fullscreen on iPad, add this website to your Home Screen.')};function downloadJSON(obj,name){const u=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),2000)}$('exportProgress').onclick=()=>downloadJSON({build:buildId,version:4,guideMode:crossLayer?'vertical':'layer',groupLimit,layer,activeGroup,done:[...done],swaps},'minecraft-builder-progress.json');$('importProgress').onclick=()=>$('progressFile').click();$('progressFile').onchange=async e=>{try{const p=JSON.parse(await e.target.files[0].text());if(p.build!==buildId)throw Error('Wrong build');
+const styleKey='minecraft-builder-style-'+buildId;let swaps={};try{swaps=JSON.parse(localStorage.getItem(styleKey)||'{}')}catch(e){};function styledName(id){return swaps[palette[id]?.name]||palette[id]?.name||'air'}function styledColor(id){const replacement=palette.findIndex(p=>p.name===styledName(id));return color(replacement<0?id:replacement)}function saveStyle(){localStorage.setItem(styleKey,JSON.stringify(swaps));updateUI()}const loadedPaths=new Set();
+ const names=[...new Set(palette.filter(p=>p.name!=='air').map(p=>p.name))].sort();for(const el of [$('swapFrom'),$('swapTo')])el.innerHTML=names.map(n=>'<option value="'+n+'">'+pretty(n)+'</option>').join('');$('swapTo').value='white_concrete';$('swapApply').onclick=()=>{const a=$('swapFrom').value,b=$('swapTo').value;if(a===b)delete swaps[a];else swaps[a]=b;saveStyle()};$('swapReset').onclick=()=>{swaps={};saveStyle()};$('stepSize').value=String(groupLimit);$('stepSize').onchange=e=>{groupLimit=+e.target.value;localStorage.setItem('minecraft-builder-step-size',groupLimit);activeGroup=0;makeGroups();done.clear();saveProgress();updateUI()};$('fullScreen').onclick=()=>{const el=document.querySelector('.viewport');if(document.fullscreenElement)document.exitFullscreen();else if(el.requestFullscreen)el.requestFullscreen();else alert('For fullscreen on iPad, add this website to your Home Screen.')};function downloadJSON(obj,name){const u=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),2000)}$('exportProgress').onclick=()=>downloadJSON({build:buildId,version:4,guideMode:crossLayer?'vertical':'layer',groupLimit,layer,activeGroup,done:[...done],swaps},'minecraft-builder-progress.json');$('importProgress').onclick=()=>$('progressFile').click();$('progressFile').onchange=async e=>{try{const p=JSON.parse(await e.target.files[0].text());if(p.build!==buildId)throw Error('Wrong build');
 const importCrossLayer=p.guideMode==='vertical';
 if(importCrossLayer!==crossLayer){crossLayer=importCrossLayer;syncGuideMode();makeGroups()}if([16,36,72,144].includes(p.groupLimit)){groupLimit=p.groupLimit;$('stepSize').value=String(groupLimit);makeGroups()}layer=Math.min(H,Math.max(0,p.layer||0));activeGroup=Math.min((groupsByLayer[layer-1]?.length||1)-1,Math.max(0,p.activeGroup||0));done=new Set(p.done||[]);swaps=p.swaps||{};saveProgress();saveStyle();updateUI();alert('Progress imported')}catch(err){alert('Import failed: '+err.message)}};$('copyMaterials').onclick=async()=>{const c=currentCounts(),m={};for(const [id,n] of Object.entries(c)){const k=styledName(+id);m[k]=(m[k]||0)+n}const t='Willis Tower materials\\n'+Object.entries(m).map(([k,n])=>n+' × '+pretty(k)).join('\\n');try{await navigator.clipboard.writeText(t);$('copyMaterials').textContent='✓ Copied'}catch(e){prompt('Copy list',t)}};document.addEventListener('keydown',e=>{if(['INPUT','SELECT'].includes(document.activeElement?.tagName))return;if(e.key==='ArrowRight')setGroup(activeGroup+1);if(e.key==='ArrowLeft')setGroup(activeGroup-1);if(e.key==='ArrowUp')setLayer(layer+1);if(e.key==='ArrowDown')setLayer(layer-1)});
 const guideModeLabel=document.createElement('label');
@@ -314,7 +315,36 @@ let packImages=new Map();
 let packModels=new Map(),packStates=new Map();
 const bedrockAliases={wooden_door:'oak_door',normal_stone_slab:'stone_slab',grass:'short_grass',
  grass_path:'dirt_path',wall_sign:'oak_wall_sign',lit_furnace:'furnace'};
-function assetName(name){return bedrockAliases[name]||name.replace(/^minecraft:/,'')}
+function assetName(name){
+ const key=name.replace(/^minecraft:/,'');
+ return bedrockAliases[key]||key;
+}
+function commonTextureRefs(name,states,face){
+ const side=face==='up'?'top':face==='down'?'bottom':'side';
+ if(name.endsWith('_door')&&!name.endsWith('_trapdoor')){
+  return [name+'_'+(stateValue(states,'half')==='upper'?'top':'bottom')];
+ }
+ if(name==='short_grass')return ['short_grass','grass'];
+ if(name==='infested_chiseled_stone_bricks')return ['chiseled_stone_bricks'];
+ if(name.endsWith('_sign'))return [name.replace(/_(?:wall_)?sign$/,'')+'_planks'];
+ if(name==='dropper'){
+  const facing=states.facing??({0:'down',1:'up',2:'north',3:'south',4:'west',5:'east'})[states.facing_direction]??'north';
+  return facing===face?[side==='side'?'dropper_front':'dropper_front_vertical','furnace_top']:['furnace_'+side,'furnace_side'];
+ }
+ const shapeBase=name.replace(/_(?:stairs|double_slab|slab|fence_gate|fence|wall|pressure_plate)$/,'');
+ const base=({oak:'oak_planks',spruce:'spruce_planks',birch:'birch_planks',
+  jungle:'jungle_planks',acacia:'acacia_planks',dark_oak:'dark_oak_planks',
+  quartz:'quartz_block_side',smooth_quartz:'quartz_block_bottom',
+  smooth_stone:'smooth_stone',stone_brick:'stone_bricks',brick:'bricks',
+  nether_brick:'nether_bricks',red_nether_brick:'red_nether_bricks',
+  polished_blackstone_brick:'polished_blackstone_bricks'})[shapeBase]||shapeBase;
+ const axis=stateValue(states,'axis')||'y';
+ const endFaces={x:['east','west'],y:['up','down'],z:['north','south']};
+ if(/_(?:log|stem|pillar)$/.test(name)){
+  return (endFaces[axis]||endFaces.y).includes(face)?[name+'_top',name]:[name];
+ }
+ return [...new Set([name+'_'+side,name,base+'_'+side,base])];
+}
 async function readPack(file){
  const zip=new Uint8Array(await file.arrayBuffer()),view=new DataView(zip.buffer);
  let end=zip.length-22;
@@ -398,18 +428,21 @@ async function loadMaterialPack(file){
   return resolved;
  }
  async function image(path){
-  if(!path||images.has(path))return;
+  if(!path||loadedPaths.has(path))return;
+  loadedPaths.add(path);
   const blob=await read(path);
   if(!blob)return;
   try{images.set(path,await createImageBitmap(blob))}catch{}
  }
+ const loadedPaths=new Set();
  const names=[...new Set(palette.map(p=>assetName(p.name)))];
  for(const name of names)states.set(name,await json('assets/minecraft/blockstates/'+name+'.json'));
  for(const {name,states:properties} of palette){
   const key=assetName(name),resolved=await model(variantModel(states.get(key),properties||{},key));
   await model(variantModel(states.get(key),{},key));
   const textures=resolved?.textures||{};
-  for(const ref of new Set([...Object.values(textures),'block/'+key,'block/'+key+'_side','block/'+key+'_top','block/'+key+'_bottom',
+  const refs=['north','south','east','west','up','down'].flatMap(face=>commonTextureRefs(key,properties||{},face));
+  for(const ref of new Set([...Object.values(textures),...refs.map(name=>'block/'+name),
    'block/glass','block/obsidian','block/beacon']))await image(texturePath(ref));
  }
  if(!images.size)throw Error('No matching block textures for this build.');
@@ -443,7 +476,7 @@ function blockAsset(id,face='north'){
  const side=face==='up'?'top':face==='down'?'bottom':'side';
  let ref=sample?.faces[face].texture??textures[side]??textures.all??textures.cross??textures.texture??textures.particle;
  for(let i=0;i<16&&ref?.startsWith('#');i++)ref=textures[ref.slice(1)];
- return [ref,'block/'+name+'_'+side,'block/'+name].map(texturePath)
+ return [ref,...commonTextureRefs(name,states,face).map(key=>'block/'+key)].map(texturePath)
   .map(path=>packImages.get(path)).find(Boolean);
 }
 function usesCutout(name){
@@ -819,6 +852,7 @@ for(const part of parts){
 const styleControls=document.createElement('section');styleControls.className='style-view-settings';styleControls.innerHTML=
 '<h2>Visual settings</h2>'+
 '<label class="style-switch"><span><b>Minecraft resource pack</b><small>Use textures from a Java resource-pack ZIP or game JAR on this device.</small></span></label>'+
+'<p class="muted">Default textures by <a href="materials/README.md">Pixel Perfection CE</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a></p>'+
 '<input id="materialPack" type="file" accept=".zip,.jar" aria-label="Minecraft resource pack"><p id="materialPackStatus" role="status"></p>'+
 '<label class="style-switch"><span><b>Animate active blocks</b><small>Drop in and pulse the blocks for the current step</small></span><input id="animateSteps" type="checkbox"></label>'+
 '<label class="style-switch"><span><b>Always show floor plan</b><small>Keep the ground grid visible after Layer 1</small></span><input id="floorPlanToggle" type="checkbox"></label>'+
@@ -851,5 +885,21 @@ $('earlierSaturation').oninput=e=>{visual.earlierSaturation=Number(e.target.valu
 $('sceneryToggle').onchange=e=>{visual.scenery=e.target.checked;persistVisual();if(threeReady)makeScenery()};
 for(const name of ['sunDirection','sunHeight'])$(name).oninput=e=>{visual[name]=Number(e.target.value);persistVisual();refreshSunLabels();setSunPosition()};
 $('texturesToggle').onchange=e=>{textureMode=e.target.checked;textureCache.forEach(t=>t.dispose());textureCache.clear();clearEarlierTextureCache();if(threeReady)rebuild()};
-restoreCurrentPosition();updateUI();init3D();
+async function useDefaultMaterials(){
+ const status=$('materialPackStatus'),input=$('materialPack');
+ input.disabled=true;
+ status.textContent='Loading default textures…';
+ try{
+  const response=await fetch('materials/pixel-perfection-ce.zip');
+  if(!response.ok)throw Error('Default material library unavailable.');
+  await loadMaterialPack(await response.blob());
+  const names=[...new Set(palette.filter((p,id)=>data.counts[id]&&p.name!=='air').map(p=>p.name))];
+  const matched=new Set(palette.flatMap((p,id)=>data.counts[id]&&['north','south','east','west','up','down'].some(face=>blockAsset(id,face))?[p.name]:[]));
+  status.textContent='Default textures matched '+matched.size+' of '+names.length+' block types.';
+ }catch{
+  status.textContent='Default textures unavailable. Using built-in materials.';
+ }finally{input.disabled=false}
+}
+restoreCurrentPosition();updateUI();
+init3D();useDefaultMaterials();
 </script></body></html>
