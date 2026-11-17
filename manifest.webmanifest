@@ -1,0 +1,11 @@
+{
+  "id": "./",
+  "name": "Minecraft Builder",
+  "short_name": "Builder",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d0e11",
+  "theme_color": "#0d0e11",
+  "icons": [{"src": "grass.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}]
+}
