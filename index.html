@@ -1,7 +1,48 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Minecraft Builder · Library</title><style>:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0d0e11;color:#f4f4f6;font:16px system-ui,-apple-system,sans-serif}header{border-bottom:1px solid #30333a;padding:20px max(20px,calc((100vw - 1100px)/2))}header strong{font-size:22px}header span{color:#ee494b}main{max-width:1100px;margin:auto;padding:24px 18px}h1{font-size:32px;margin:8px 0}p{color:#adb0bb;line-height:1.6}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin:24px 0}.card{border:1px solid #363942;background:#1a1c22;border-radius:18px;padding:20px}.art{height:135px;background:radial-gradient(circle at 50% 50%,#30343e,#121419);display:grid;place-items:center;font-size:56px;border-radius:12px;margin-bottom:16px}button,.button{background:#ee494b;color:white;border:0;border-radius:10px;padding:13px 18px;font:inherit;font-weight:650;cursor:pointer;text-decoration:none;display:inline-block}button.secondary{background:#30333a}input{max-width:100%}.upload{border:2px dashed #555962;border-radius:16px;padding:24px;margin-top:24px}small{color:#aeb2bd}#status{white-space:pre-wrap;color:#e7b17b}.card h2{margin:0 0 8px}</style></head><body><header><strong>MINECRAFT <span>BUILDER</span></strong></header><main><h1>Your building library</h1><p>Choose a model to follow its step-by-step guide. Import additional Java Edition Sponge schematics (.schem) directly in your browser; your imported models stay on this device.</p><div class="grid" id="library"><div class="card"><div class="art">🏙️</div><h2>Willis (Sears) Tower</h2><p>28 × 28 footprint · 178 layers</p><a class="button" href="guide.html">Start building</a></div></div><div class="upload"><h2>Import a building</h2><p>Choose a Sponge schematic (.schem). Large models may take time to process. Imported builds are stored in this browser only and are not uploaded to GitHub.</p><input type="file" id="file" accept=".schem,.schematic" multiple><p id="status" role="status"></p></div></main><script type="module">
 const dbOpen=()=>new Promise((ok,no)=>{const q=indexedDB.open('minecraft-builder-library',1);q.onupgradeneeded=()=>q.result.createObjectStore('builds',{keyPath:'id'});q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)});
 const db=await dbOpen(),list=document.getElementById('library'),status=document.getElementById('status');
-function card(m){const el=document.createElement('div');el.className='card';const art=document.createElement('div');art.className='art';art.textContent='🏗️';el.append(art);const h=document.createElement('h2');h.textContent=m.name;el.append(h);const p=document.createElement('p');p.textContent=m.data.width+' × '+m.data.length+' footprint · '+m.data.height+' layers';el.append(p);const a=document.createElement('a');a.className='button';a.href='guide.html?build='+encodeURIComponent(m.id);a.textContent='Start building';el.append(a);const del=document.createElement('button');del.className='secondary';del.textContent='Remove';del.style.marginLeft='8px';del.onclick=()=>{if(confirm('Remove this imported building from this device?')){db.transaction('builds','readwrite').objectStore('builds').delete(m.id);el.remove()}};el.append(del);list.append(el)}
+function renameBuild(id,name){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction('builds','readwrite'),store=tx.objectStore('builds');
+  tx.oncomplete=resolve;
+  tx.onabort=()=>reject(tx.error||Error('This build is no longer in the library.'));
+  const lookup=store.get(id);
+  lookup.onsuccess=()=>{
+   if(!lookup.result){tx.abort();return}
+   store.put({...lookup.result,name});
+  };
+ });
+}
+function addRenameControl(card,heading,model){
+ const button=document.createElement('button');
+ button.className='secondary';button.textContent='Rename';button.style.marginLeft='8px';
+ button.onclick=()=>{
+  const form=document.createElement('form');
+  form.style.marginTop='12px';
+  const input=document.createElement('input');
+  input.type='text';input.required=true;input.maxLength=120;input.value=heading.textContent;
+  input.setAttribute('aria-label','Build name');
+  const save=document.createElement('button');
+  save.type='submit';save.className='secondary';save.textContent='Save';
+  const cancel=document.createElement('button');
+  cancel.type='button';cancel.className='secondary';cancel.textContent='Cancel';
+  const close=()=>{form.remove();button.disabled=false;button.focus()};
+  cancel.onclick=close;
+  input.oninput=()=>input.setCustomValidity('');
+  input.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();close()}};
+  form.onsubmit=async e=>{
+   e.preventDefault();
+   const name=input.value.trim();
+   if(!name){input.setCustomValidity('Enter a build name.');input.reportValidity();return}
+   save.disabled=cancel.disabled=input.disabled=true;
+   try{await renameBuild(model.id,name);heading.textContent=name;status.textContent='Renamed to '+name+'.';close()}
+   catch(error){status.textContent='Could not rename build. '+error.message;save.disabled=cancel.disabled=input.disabled=false}
+  };
+  button.disabled=true;form.append(input,save,cancel);card.append(form);input.focus();input.select();
+ };
+ card.append(button);
+}
+function card(m){const el=document.createElement('div');el.className='card';const art=document.createElement('div');art.className='art';art.textContent='🏗️';el.append(art);const h=document.createElement('h2');h.textContent=m.name;el.append(h);const p=document.createElement('p');p.textContent=m.data.width+' × '+m.data.length+' footprint · '+m.data.height+' layers';el.append(p);const a=document.createElement('a');a.className='button';a.href='guide.html?build='+encodeURIComponent(m.id);a.textContent='Start building';el.append(a);addRenameControl(el,h,m);const del=document.createElement('button');del.className='secondary';del.textContent='Remove';del.style.marginLeft='8px';del.onclick=()=>{if(confirm('Remove this imported building from this device?')){db.transaction('builds','readwrite').objectStore('builds').delete(m.id);el.remove()}};el.append(del);list.append(el)}
 const all=db.transaction('builds').objectStore('builds').getAll();all.onsuccess=()=>all.result.forEach(card);
 class NBT{constructor(buf){this.v=new DataView(buf);this.i=0;this.decoder=new TextDecoder()}byte(){return this.v.getUint8(this.i++)}num(t){const sizes={1:1,2:2,3:4,4:8,5:4,6:8};const n=sizes[t];let x;if(t===1)x=this.v.getInt8(this.i);else if(t===2)x=this.v.getInt16(this.i);else if(t===3)x=this.v.getInt32(this.i);else if(t===4)x=Number(this.v.getBigInt64(this.i));else if(t===5)x=this.v.getFloat32(this.i);else x=this.v.getFloat64(this.i);this.i+=n;return x}str(){const n=this.v.getUint16(this.i);this.i+=2;const a=new Uint8Array(this.v.buffer,this.i,n);this.i+=n;return this.decoder.decode(a)}value(t){if(t>=1&&t<=6)return this.num(t);if(t===8)return this.str();if(t===7){const n=this.num(3),a=new Uint8Array(this.v.buffer,this.i,n);this.i+=n;return a}if(t===11||t===12){const n=this.num(3),a=[];for(let i=0;i<n;i++)a.push(this.num(t===11?3:4));return a}if(t===9){const type=this.byte(),n=this.num(3),a=[];for(let i=0;i<n;i++)a.push(this.value(type));return a}if(t===10){const o={};while(true){const type=this.byte();if(!type)break;const name=this.str();o[name]=this.value(type)}return o}throw Error('Unsupported NBT type '+t)}read(){const t=this.byte();this.str();return this.value(t)}}
 async function decode(file){const raw=await file.arrayBuffer();if(new Uint8Array(raw)[0]!==31)throw Error('Expected gzip-compressed Sponge schematic');if(!('DecompressionStream'in window))throw Error('This browser does not support gzip decompression');const expanded=await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const o=new NBT(expanded).read();if(!o.Palette||!o.BlockData||!o.Width||!o.Height||!o.Length)throw Error('Unsupported schematic: expected Sponge .schem v2');const W=o.Width,H=o.Height,L=o.Length;if(W*H*L>6000000)throw Error('Model too large for this browser importer');const palette=[];for(const [full,id] of Object.entries(o.Palette)){const match=full.match(/^minecraft:([^\[]+)(?:\[(.*)\])?$/);if(!match)continue;const states={};if(match[2])for(const kv of match[2].split(',')){const [k,v]=kv.split('=');states[k]=v}palette[id]={name:match[1],states}}const layers=Array.from({length:H},()=>[]),counts={};const bytes=o.BlockData;let index=0,byteIndex=0;const volume=W*H*L;while(index<volume){let value=0,shift=0,b;do{if(byteIndex>=bytes.length)throw Error('Truncated block data');b=bytes[byteIndex++];value|=(b&127)<<shift;shift+=7;if(shift>35)throw Error('Invalid varint')}while(b&128);const x=index%W,z=Math.floor(index/W)%L,y=Math.floor(index/(W*L));if(palette[value]&&palette[value].name!=='air'){layers[y].push(x,z,value);counts[value]=(counts[value]||0)+1}index++}return {width:W,height:H,length:L,palette,layers,counts}}
